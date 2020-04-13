@@ -1,0 +1,8 @@
+{
+    "rust-client.rlsPath": "/Users/gdc/.rustup/toolchains/nightly-2020-04-10-x86_64-apple-darwin/bin/rls",
+    "rust-client.channel": "nightly",
+    "rust.target": "./x64_blogos.json",
+    "rust.all_targets": false,
+    "rust.sysroot": "/Volumes/DataSSD/rust/blog_os/target/sysroot",
+    "rust.rustflags": "-L dependency=/Volumes/DataSSD/rust/blog_os/target/sysroot/lib/rustlib/x64_blogos/lib"
+}

@@ -1,0 +1,5 @@
+[build]
+target = "./x64_blogos.json"
+
+[target.'cfg(target_os = "none")']
+runner = "bootimage runner"
