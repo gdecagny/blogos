@@ -159,3 +159,22 @@ pub fn _print(args: fmt::Arguments) {
     use core::fmt::Write;
     WRITER.lock().write_fmt(args).unwrap();
 }
+
+#[cfg(test)]
+use crate::{serial_print, serial_println};
+
+#[test_case]
+fn simple_println() {
+    serial_print!("Test println doesn't panic... ");
+    println!("Ca devrait marcher au taquet ca... {} !", 42);
+    serial_println!("Ok!"); 
+}
+
+#[test_case]
+fn simple_println() {
+    serial_print!("Test massive println doesn't panic... ");
+    for _ in 0..=400 {
+        println!("Ca devrait marcher au taquet ca... {} !", 42);
+    }
+    serial_println!("Ok!"); 
+}

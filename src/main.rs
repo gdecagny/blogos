@@ -1,13 +1,18 @@
 #![no_std]
 #![no_main]
 #![feature(custom_test_frameworks)]
-#![test_runner(crate::test_runner)]
+#![test_runner(blog_os::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
 use core::panic::PanicInfo;
 
-mod vga_buffer;
-mod serial;
+use blog_os::println;
+
+use blog_os::vga_buffer;
+
+#[cfg(test)]
+use blog_os::{serial_print, serial_println, exit_qemu, QemuExitCode}; 
+
 
 #[cfg(not(test))]
 #[panic_handler]
@@ -19,36 +24,11 @@ fn panicc(_info: &PanicInfo) -> ! {
 #[cfg(test)]
 #[panic_handler]
 fn panicc(_info: &PanicInfo) -> ! {
-    console_log!("Panic detected! {}", _info);
+    serial_println!("Panic detected! {}", _info);
     exit_qemu(QemuExitCode::Failed);
     loop {}
 }
 
-
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-#[repr(u32)]
-pub enum QemuExitCode {
-    Success = 0x10,
-    Failed = 0x11
-}
-
-pub fn exit_qemu(exit_code: QemuExitCode) {
-    use x86_64::instructions::port::Port;
-
-    unsafe {
-        let mut port = Port::new(0xf4);
-        port.write(exit_code as u32);
-    }
-}
-
-#[cfg(test)]
-fn test_runner(tests: &[&dyn Fn()]) {
-    println!("Running {} tests", tests.len());
-    for test in tests {
-        test();
-    }
-    exit_qemu(QemuExitCode::Success);
-}
 
 
 #[no_mangle]
@@ -69,13 +49,7 @@ extern "C" fn _start() -> ! {
 
 #[test_case]
 fn trivial_assertion() {
-    println!("Test begin");
-    console_log!("Ca roaaackksss {}", 422);
-    console_log!("Ca roaaackksss {}", 422);
-    console_log!("Ca roaaackksss {}", 422);
-    console_log!("Ca roaaackksss {}", 422);
-    console_log!("Ca roaaackksss {}", 422);
-    console_log!("Ca roaaackksss {}", 422);
+    serial_print!("Test trivial assertion... ");
     assert_eq!(0, 0);
-    println!("Ol goud!");
+    serial_println!("Ok!"); 
 }
