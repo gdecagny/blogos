@@ -9,6 +9,8 @@ use blog_os;
 
 #[no_mangle]
 pub extern "C" fn _start() -> ! {
+
+    blog_os::serial_println!("C'est parti!");
     blog_os::init();
     test_main();
     loop {}
@@ -19,10 +21,12 @@ fn panicccc(info: &PanicInfo) -> ! {
     blog_os::test_panic_handler(info)
 } 
 
-
 #[test_case]
-fn test_println() {
-    blog_os::serial_print!("testing integration test...");
-    blog_os::println!("test_println output");
-    blog_os::serial_println!("[ok]");
+fn test_breakpoint_interrupt()
+{
+    use blog_os::{serial_print, serial_println};
+    serial_print!("Testing int3 interrupt... ");
+    use x86_64::instructions;
+    instructions::interrupts::int3();
+    serial_println!("Ok!");
 }

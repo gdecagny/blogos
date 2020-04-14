@@ -6,18 +6,20 @@
 
 use core::panic::PanicInfo;
 
-use blog_os::println;
+#[cfg(not(test))]
+use blog_os::{println, serial_println};
 
-use blog_os::vga_buffer;
+use blog_os::init;
 
 #[cfg(test)]
-use blog_os::{serial_print, serial_println, exit_qemu, QemuExitCode}; 
+use blog_os::{println, serial_print, serial_println, exit_qemu, QemuExitCode}; 
 
 
 #[cfg(not(test))]
 #[panic_handler]
-fn panicc(_info: &PanicInfo) -> ! {
-    println!("Panic detected! {}", _info);
+fn panicc(info: &PanicInfo) -> ! {
+    println!("Panic detected! {}", info);
+    serial_println!("Panic detected! {}", info);
     loop {}
 }
 
@@ -36,14 +38,15 @@ extern "C" fn _start() -> ! {
     
     println!("Ca roacks! ");
     
-    vga_buffer::print_something();
+    init();
+
+    use x86_64::instructions;
+    instructions::interrupts::int3();
 
     #[cfg(test)]
     test_main();
 
     println!("Ca a roacked.");
-    println!("Ca a totaement rocked {}", 42);
-
     loop {}
 }
 

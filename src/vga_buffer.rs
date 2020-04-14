@@ -97,6 +97,7 @@ impl Writer {
         self.current_column += 1;
     }
 
+    #[allow(dead_code)]
     fn set_color(&mut self, color_code: ColorCode) {
         self.current_color = color_code;
     }
@@ -132,17 +133,6 @@ lazy_static! {
 }
 
 
-pub fn print_something() {
-    use core::fmt::Write;
-    let mut writer = WRITER.lock();
-    writer.write_string("Hello world de ouf!?!Hello world de ouf!?!");
-    writer.set_color(ColorCode::new(Color::Yellow, Color::Pink));
-    write!(writer, "\nTHIS WILL NEVER BE DISPLAYED\rHello world de ouf!?! {} Hello world de ouf!?!Hello world de ouf!?!Hello world de ouf!?!Hello world de ouf!?!", 42).unwrap();
-
-    let color = ColorCode::new(Color::Black, Color::Pink);  
-    writer.set_color(color);
-}
-
 #[macro_export]
 macro_rules! print {
     ($($arg:tt)*) => ($crate::vga_buffer::_print(format_args!($($arg)*)));
@@ -170,11 +160,11 @@ fn simple_println() {
     serial_println!("Ok!"); 
 }
 
-#[test_case]
-fn simple_println() {
+/* #[test_case]
+fn massive_println() {
     serial_print!("Test massive println doesn't panic... ");
     for _ in 0..=400 {
         println!("Ca devrait marcher au taquet ca... {} !", 42);
     }
     serial_println!("Ok!"); 
-}
+} */
