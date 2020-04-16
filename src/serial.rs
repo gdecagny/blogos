@@ -27,6 +27,8 @@ macro_rules! serial_println {
 #[doc(hidden)]
 pub fn _print(args: fmt::Arguments) {
     use core::fmt::Write;
-    let mut writer = SERIAL1.lock();
-    writer.write_fmt(args).expect("Printing to serial port failed");
+    use x86_64::instructions::interrupts;
+    interrupts::without_interrupts(|| {
+        SERIAL1.lock().write_fmt(args).expect("Printing to serial port failed");
+    });
 }

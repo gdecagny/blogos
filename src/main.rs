@@ -7,9 +7,10 @@
 use core::panic::PanicInfo;
 
 #[cfg(not(test))]
-use blog_os::{println, serial_println};
+use blog_os::{println, serial_print, serial_println};
 
 use blog_os::init;
+use x86_64::instructions::hlt;
 
 #[cfg(test)]
 use blog_os::{println, serial_print, serial_println, exit_qemu, QemuExitCode}; 
@@ -20,7 +21,7 @@ use blog_os::{println, serial_print, serial_println, exit_qemu, QemuExitCode};
 fn panicc(info: &PanicInfo) -> ! {
     println!("Panic detected! {}", info);
     serial_println!("Panic detected! {}", info);
-    loop {}
+    loop { hlt(); }
 }
 
 #[cfg(test)]
@@ -28,7 +29,7 @@ fn panicc(info: &PanicInfo) -> ! {
 fn panicc(_info: &PanicInfo) -> ! {
     serial_println!("Panic detected! {}", _info);
     exit_qemu(QemuExitCode::Failed);
-    loop {}
+    loop { hlt(); }
 }
 
 
@@ -47,7 +48,9 @@ extern "C" fn _start() -> ! {
     test_main();
 
     println!("Ca a roacked.");
-    loop {}
+    loop { 
+        hlt();
+    }
 }
 
 #[test_case]

@@ -50,6 +50,7 @@ pub fn test_panic_handler(info: &PanicInfo) -> ! {
 pub fn init() {
     interrupts::register_idt();
     gdt::load_gdt();
+    interrupts::init_pic_interrupts();
 }
 
 #[cfg(test)]
