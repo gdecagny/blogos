@@ -28,7 +28,6 @@ pub fn exit_qemu(exit_code: QemuExitCode) {
 }
 
 
-use core::panic::PanicInfo;
 
 pub fn test_runner(tests: &[&dyn Fn()]) {
     serial_println!("Running {} tests", tests.len());
@@ -37,6 +36,8 @@ pub fn test_runner(tests: &[&dyn Fn()]) {
     }
     exit_qemu(QemuExitCode::Success);
 }
+
+use core::panic::PanicInfo;
 
 pub fn test_panic_handler(info: &PanicInfo) -> ! {
     serial_println!("[failed]");
