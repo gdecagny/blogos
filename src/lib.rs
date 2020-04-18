@@ -10,6 +10,8 @@ pub mod serial;
 pub mod vga_buffer;
 pub mod interrupts;
 pub mod gdt;
+pub mod memory;
+
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 #[repr(u32)]
@@ -54,8 +56,13 @@ pub fn init() {
 }
 
 #[cfg(test)]
-#[no_mangle]
-pub extern "C" fn _start() -> ! {
+use bootloader::{BootInfo, entry_point};
+
+#[cfg(test)]
+entry_point!(test_kernel_start);
+
+#[cfg(test)]
+fn test_kernel_start(_boot_info: &'static BootInfo) -> ! {
     init();
     test_main();
     loop {}

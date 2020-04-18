@@ -11,7 +11,11 @@ extern "x86-interrupt" fn handle_breakpoint(stack_frame: &mut idt::InterruptStac
 
 
 extern "x86-interrupt" fn handle_page_fault(stack_frame: &mut idt::InterruptStackFrame, error_code: idt::PageFaultErrorCode) {
-    serial_println!("page_fault!\nError Code : {:?}\n{:?}", error_code, stack_frame);
+    use x86_64::registers::control::Cr2;
+    let addr = Cr2::read();
+    serial_println!("page_fault!\nFault address: {:?}\nError Code : {:?}\n{:?}", addr, error_code, stack_frame);
+    use x86_64::instructions::hlt;
+    loop { hlt(); }
 }
 
 
