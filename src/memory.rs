@@ -87,7 +87,11 @@ impl fmt::Debug for PageTableEntry {
 }
 
 
-pub fn describe_page_table(virtual_address: u64, physical_address: u64, level: u64, memory_mapping_offset: u64) {
+pub unsafe fn describe_page_table(virtual_address: u64, physical_address: u64, level: u64, memory_mapping_offset: u64) {
+    describe_page_table_inner(virtual_address, physical_address, level, memory_mapping_offset);
+}
+
+fn describe_page_table_inner(virtual_address: u64, physical_address: u64, level: u64, memory_mapping_offset: u64) {
     
     let virtual_address_offset = 1 << (12 + 9 * (level-1));
     
@@ -99,7 +103,7 @@ pub fn describe_page_table(virtual_address: u64, physical_address: u64, level: u
     let mut nb_continuation = 0;
     for ix in 0..512 {
         let page_table_entry = page_table[ix as usize];
-        nb_continuation = describe_page_table_entry(
+        nb_continuation = describe_page_table_entry_inner(
             virtual_address + ix * virtual_address_offset, 
             physical_address + ix * 8, 
             page_table_entry,
@@ -112,7 +116,7 @@ pub fn describe_page_table(virtual_address: u64, physical_address: u64, level: u
     }
 }
 
-pub fn describe_page_table_entry(virtual_address: u64, physical_address: u64, page_table_entry_u64: u64, index: u64, level: u64, memory_mapping_offset: u64, previous_entry: u64, nb_continuation: u32 ) -> u32 {
+fn describe_page_table_entry_inner(virtual_address: u64, physical_address: u64, page_table_entry_u64: u64, index: u64, level: u64, memory_mapping_offset: u64, previous_entry: u64, nb_continuation: u32 ) -> u32 {
     use crate::serial_println;
 
     let indent = match level {
@@ -134,7 +138,7 @@ pub fn describe_page_table_entry(virtual_address: u64, physical_address: u64, pa
         }
     }
 
-    // we are not a continuation, or the last entry in the table, so we display the page table entry
+    // we are not a continuation, or the last entry in the table, so we display the page table and the number of continuation in between
     if nb_continuation > 0 {
         serial_println!("                            ... + {} ... ", nb_continuation);
     }
@@ -142,9 +146,49 @@ pub fn describe_page_table_entry(virtual_address: u64, physical_address: u64, pa
     serial_println!("{} {} {:3} 0x{:x}... {:?}                             (stored in physical address 0x{:x})", level, indent, index, virtual_address, page_table_entry, physical_address);
 
     if !page_table_entry.is_huge_page() && level > 1 {
-        describe_page_table(virtual_address, page_table_entry.physical_address(), level - 1, memory_mapping_offset);
+        describe_page_table_inner(virtual_address, page_table_entry.physical_address(), level - 1, memory_mapping_offset);
     }
 
     return 0;
     
+}
+
+pub unsafe fn translate_addr(virtual_address: u64, memory_mapping_offset: u64) -> Option<u64> {
+    return translate_addr_inner(virtual_address, memory_mapping_offset);
+}
+
+
+fn translate_addr_inner(virtual_address: u64, memory_mapping_offset: u64) -> Option<u64> {
+    use x86_64::registers::control::Cr3;
+    let (page_table_phys_address, _) = Cr3::read();
+
+    let mut next_phys_address = page_table_phys_address.start_address().as_u64();
+
+    let lv4_index = virtual_address.get_bits(39..48);
+    let lv3_index = virtual_address.get_bits(30..39);
+    let lv2_index = virtual_address.get_bits(21..30);
+    let lv1_index = virtual_address.get_bits(12..21);
+
+    let mut exited_at_level = 0;
+
+    for (level, &index) in [ lv4_index, lv3_index, lv2_index, lv1_index ].iter().enumerate() {
+        let next_virt_address = (next_phys_address + memory_mapping_offset) as *const [PageTableEntry; 512];
+        let page_table = unsafe { &* next_virt_address };
+        let page_table_entry = &page_table[index as usize];
+        if !page_table_entry.is_present() {
+            return None
+        }
+        next_phys_address = page_table_entry.physical_address();
+        if page_table_entry.is_huge_page() {
+            exited_at_level = 4 - level;
+            break;
+        }
+    }
+  
+    match exited_at_level {
+        0 => Some(next_phys_address + virtual_address.get_bits(0..12)),
+        2 => Some(next_phys_address + virtual_address.get_bits(0..21)),
+        3 => Some(next_phys_address + virtual_address.get_bits(0..30)),
+        _ => panic!("Exited page table browsing at level {}", exited_at_level)
+    }
 }

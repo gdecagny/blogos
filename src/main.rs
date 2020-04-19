@@ -56,7 +56,13 @@ fn kernel_start(boot_info: &'static BootInfo) -> ! {
     serial_println!("lv4 ptr 0x{:x} : {:#?}", level_4_page_table as u64, unsafe { *level_4_page_table });
     use blog_os::memory;
 
-    memory::describe_page_table(0, startaddr, 4, physical_memory_offset);
+    unsafe { memory::describe_page_table(0, startaddr, 4, physical_memory_offset); }
+
+    let addr_to_test = [ 0x1000, 0x201232, physical_memory_offset, physical_memory_offset+0x34252, 0xb8000, 0xdeadbeef ];
+    for &addr in addr_to_test.iter() {
+        println!("Translated virt addr {:x} to {:?}", addr, unsafe { memory::translate_addr(addr, physical_memory_offset) });
+
+    }
 
     #[cfg(test)]
     test_main();
