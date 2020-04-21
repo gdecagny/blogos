@@ -58,12 +58,33 @@ fn kernel_start(boot_info: &'static BootInfo) -> ! {
 
     unsafe { memory::describe_page_table(0, startaddr, 4, physical_memory_offset); }
 
+    
+    use x86_64::VirtAddr;
+    use x86_64::structures::paging::{MapperAllSizes, Page};
+
+    let mut mapper = unsafe { memory::init_mapper(VirtAddr::new(physical_memory_offset)) };
+    
+    
     let addr_to_test = [ 0x1000, 0x201232, physical_memory_offset, physical_memory_offset+0x34252, 0xb8000, 0xdeadbeef ];
     for &addr in addr_to_test.iter() {
-        println!("Translated virt addr {:x} to {:?}", addr, unsafe { memory::translate_addr(addr, physical_memory_offset) });
-
+        println!("Translated virt addr {:x} to {:?}", addr, mapper.translate_addr(VirtAddr::new(addr)));
     }
 
+    let memory_map = &boot_info.memory_map;
+
+    serial_println!("{:#?}", memory_map);
+
+    let mut frame_allocator = memory::BootInfoFrameAllocator::init(memory_map);
+
+    let test_addr = 0xdeadb200;
+    let page = Page::containing_address(VirtAddr::new(test_addr));
+    memory::create_example_mapping(page, &mut mapper, &mut frame_allocator);
+
+    println!("Translated virt addr {:x}, to {:?}", test_addr, mapper.translate_addr(VirtAddr::new(test_addr)));
+
+    let test_addr = test_addr as *mut u64;
+    unsafe { test_addr.write_volatile(0x_f021_f077_f065_f04e); }
+    
     #[cfg(test)]
     test_main();
 

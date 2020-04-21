@@ -47,33 +47,14 @@ impl PageTableEntry {
     pub fn physical_address(&self) -> u64 {
         self.entry.get_bits(12..=51) << 12
     }
-
-    pub fn is_continuation_of(&self, previous: &PageTableEntry) -> bool {
-        if self.is_present() != previous.is_present() ||
-            self.is_writeable() != previous.is_writeable() ||
-            self.is_user_accessible() != previous.is_user_accessible() ||
-            self.is_write_through_caching() != previous.is_write_through_caching() ||
-            self.is_disable_cache() != previous.is_disable_cache() ||
-            self.is_accessed() != previous.is_accessed() ||
-            self.is_dirty() != previous.is_dirty() ||
-            self.is_huge_page() != previous.is_huge_page() ||
-            self.is_global() != previous.is_global() ||
-            self.is_not_executable() != previous.is_not_executable() { 
-                return false; 
-        }
-        if self.is_huge_page() {
-            return self.physical_address() == previous.physical_address() + 0x200000;
-        }
-        else {
-            return self.physical_address() == previous.physical_address() + 0x1000;
-        }
-    }
-
-    
 }
 impl fmt::Debug for PageTableEntry {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "PageTableEntry(PhysAddr=0x{:x}, present={}, writeable={}, user_accessible={}, dirty={}, accessed={}, nx={}, huge_page={})", 
+        if !self.is_present() {
+            write!(f, "PageTableEntry( not present )" )   
+        } 
+        else {
+            write!(f, "PageTableEntry(PhysAddr=0x{:x}, present={}, writeable={}, user_accessible={}, dirty={}, accessed={}, nx={}, huge_page={})", 
             self.physical_address(),
             self.is_present(),
             self.is_writeable(),
@@ -81,8 +62,8 @@ impl fmt::Debug for PageTableEntry {
             self.is_dirty(),
             self.is_accessed(),
             self.is_not_executable(),
-            self.is_huge_page()
-        )
+            self.is_huge_page())
+        }
     }
 }
 
@@ -112,13 +93,42 @@ fn describe_page_table_inner(virtual_address: u64, physical_address: u64, level:
             memory_mapping_offset, 
             previous_entry, 
             nb_continuation);
-        previous_entry = page_table_entry;
+            previous_entry = page_table_entry;
     }
 }
+impl PageTableEntry {
+    fn is_continuation_of(&self, previous: &PageTableEntry) -> bool {
+        if self.is_present() != previous.is_present() ||
+            self.is_writeable() != previous.is_writeable() ||
+            self.is_user_accessible() != previous.is_user_accessible() ||
+            self.is_write_through_caching() != previous.is_write_through_caching() ||
+            self.is_disable_cache() != previous.is_disable_cache() ||
+            self.is_accessed() != previous.is_accessed() ||
+            self.is_dirty() != previous.is_dirty() ||
+            self.is_huge_page() != previous.is_huge_page() ||
+            self.is_global() != previous.is_global() ||
+            self.is_not_executable() != previous.is_not_executable() { 
+                return false; 
+        }
+        if !self.is_present() { return true; }
+        if self.is_huge_page() {
+            return self.physical_address() == previous.physical_address() + 0x200000;
+        }
+        else {
+            return self.physical_address() == previous.physical_address() + 0x1000;
+        }
+    }
 
-fn describe_page_table_entry_inner(virtual_address: u64, physical_address: u64, page_table_entry_u64: u64, index: u64, level: u64, memory_mapping_offset: u64, previous_entry: u64, nb_continuation: u32 ) -> u32 {
+    
+}
+
+fn describe_page_table_entry_inner(virtual_address: u64, physical_address: u64, 
+    page_table_entry_u64: u64, index: u64, 
+    level: u64, memory_mapping_offset: u64, 
+    previous_entry: u64, nb_continuation: u32 ) -> u32 {
+        
     use crate::serial_println;
-
+    
     let indent = match level {
         4 => "",
         3 => "  ",
@@ -126,69 +136,112 @@ fn describe_page_table_entry_inner(virtual_address: u64, physical_address: u64, 
         1 => "      ",
         _ => panic!("Error! level should be 1..=4")
     };
-
+    
     let page_table_entry = PageTableEntry::from(page_table_entry_u64);
-
-    if !page_table_entry.is_present() { return 0; }
-
+    
+    //if !page_table_entry.is_present() { return 0; }
+    
     if index > 0 && index < 511 {
         let previous_page_table_entry = PageTableEntry::from(previous_entry);
-        if page_table_entry.is_continuation_of(&previous_page_table_entry) {
-            return nb_continuation + 1;
+        if level == 1 || !page_table_entry.is_present() || page_table_entry.is_huge_page() {
+            if page_table_entry.is_continuation_of(&previous_page_table_entry) {
+                return nb_continuation + 1;
+            }
         }
     }
-
+    
     // we are not a continuation, or the last entry in the table, so we display the page table and the number of continuation in between
     if nb_continuation > 0 {
         serial_println!("                            ... + {} ... ", nb_continuation);
     }
-
-    serial_println!("{} {} {:3} 0x{:x}... {:?}                             (stored in physical address 0x{:x})", level, indent, index, virtual_address, page_table_entry, physical_address);
-
-    if !page_table_entry.is_huge_page() && level > 1 {
+    
+    serial_println!("{} {} {:03} 0x{:x}... {:?}                             (stored in physical address 0x{:x})", 
+    level, indent, index, virtual_address, page_table_entry, physical_address);
+    
+    if !page_table_entry.is_huge_page() && page_table_entry.is_present() && level > 1 {
         describe_page_table_inner(virtual_address, page_table_entry.physical_address(), level - 1, memory_mapping_offset);
     }
-
+    
     return 0;
     
 }
+    
+use x86_64::VirtAddr;
+use x86_64::structures::paging::{OffsetPageTable, PageTable};
 
-pub unsafe fn translate_addr(virtual_address: u64, memory_mapping_offset: u64) -> Option<u64> {
-    return translate_addr_inner(virtual_address, memory_mapping_offset);
+fn active_level_4_table(physical_memory_offset: VirtAddr) -> &'static mut PageTable {
+    let (level_4_address, _ ) = x86_64::registers::control::Cr3::read();
+    
+    let ptr = (physical_memory_offset + level_4_address.start_address().as_u64()).as_mut_ptr();
+    
+    let page_table = unsafe { &mut *ptr };
+    
+    return page_table;
 }
 
+pub unsafe fn init_mapper(physical_memory_offset: VirtAddr) -> OffsetPageTable<'static> {
+    let level_4_table = active_level_4_table(physical_memory_offset);
+    OffsetPageTable::new(level_4_table, physical_memory_offset)
+}
 
-fn translate_addr_inner(virtual_address: u64, memory_mapping_offset: u64) -> Option<u64> {
-    use x86_64::registers::control::Cr3;
-    let (page_table_phys_address, _) = Cr3::read();
+use x86_64::structures::paging::{FrameAllocator, Size4KiB, UnusedPhysFrame};
+use x86_64::structures::paging::{Page, PhysFrame, PageTableFlags, Mapper};
+use x86_64::PhysAddr;
 
-    let mut next_phys_address = page_table_phys_address.start_address().as_u64();
+pub struct EmptyFrameAllocator;
 
-    let lv4_index = virtual_address.get_bits(39..48);
-    let lv3_index = virtual_address.get_bits(30..39);
-    let lv2_index = virtual_address.get_bits(21..30);
-    let lv1_index = virtual_address.get_bits(12..21);
+unsafe impl FrameAllocator<Size4KiB> for EmptyFrameAllocator {
+    fn allocate_frame(&mut self) -> Option<UnusedPhysFrame> {
+        None
+    }
+}
 
-    let mut exited_at_level = 0;
+pub fn create_example_mapping(page: Page, mapper: &mut OffsetPageTable, frame_allocator: &mut impl FrameAllocator<Size4KiB>) {
+    let frame = PhysFrame::containing_address(PhysAddr::new(0xb8000));
 
-    for (level, &index) in [ lv4_index, lv3_index, lv2_index, lv1_index ].iter().enumerate() {
-        let next_virt_address = (next_phys_address + memory_mapping_offset) as *const [PageTableEntry; 512];
-        let page_table = unsafe { &* next_virt_address };
-        let page_table_entry = &page_table[index as usize];
-        if !page_table_entry.is_present() {
-            return None
-        }
-        next_phys_address = page_table_entry.physical_address();
-        if page_table_entry.is_huge_page() {
-            exited_at_level = 4 - level;
-            break;
+    let unused_frame = unsafe { UnusedPhysFrame::new(frame) };
+    let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE;
+
+    let map_to_result = mapper.map_to(page, unused_frame, flags, frame_allocator);
+    map_to_result.expect("map_to failed").flush();
+
+}
+
+use bootloader::bootinfo::{MemoryMap, MemoryRegion, MemoryRegionType};
+
+pub struct BootInfoFrameAllocator {
+    memory_map: &'static MemoryMap,
+    next: usize
+}
+
+impl BootInfoFrameAllocator {
+    pub fn init(memory_map: &'static MemoryMap) -> Self {
+        BootInfoFrameAllocator {
+            memory_map,
+            next: 0
         }
     }
-  
-    match exited_at_level {
-        0 => Some(next_phys_address + virtual_address.get_bits(0..12)),
-        2 => Some(next_phys_address + virtual_address.get_bits(0..21)),
-        3 => Some(next_phys_address + virtual_address.get_bits(0..30)),
-        _ => panic!("Exited page table browsing at level {}", exited_at_level)
+
+    fn usable_frames(&self) -> impl Iterator<Item = UnusedPhysFrame> {
+
+        let truc = MemoryRegion::empty();
+        
+        use crate::serial_println;
+
+        let regions = self.memory_map.iter();
+        let usable_regions = regions.filter(|r| r.region_type == MemoryRegionType::Usable);
+        let frames = usable_regions.map(|r| r.range.start_addr()..r.range.end_addr());
+        let frame_addresses = frames.flat_map(|r| r.step_by(4096));
+        let frames = frame_addresses.map(|addr| { serial_println!("{:x}", addr); PhysFrame::containing_address(PhysAddr::new(addr)) });
+        frames.map(|frame| unsafe { UnusedPhysFrame::new(frame)})
+    }
+
+}
+
+unsafe impl FrameAllocator<Size4KiB> for BootInfoFrameAllocator {
+    fn allocate_frame(&mut self) -> Option<UnusedPhysFrame> {
+        let frame = self.usable_frames().nth(self.next);
+        self.next += 1;
+        frame
     }
 }
