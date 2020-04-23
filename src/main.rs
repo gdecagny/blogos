@@ -6,6 +6,10 @@
 
 use core::panic::PanicInfo;
 
+extern crate alloc;
+use alloc::{boxed::Box, vec, vec::Vec};
+
+
 #[cfg(not(test))]
 use blog_os::{println, serial_print, serial_println};
 
@@ -56,7 +60,6 @@ fn kernel_start(boot_info: &'static BootInfo) -> ! {
     serial_println!("lv4 ptr 0x{:x} : {:#?}", level_4_page_table as u64, unsafe { *level_4_page_table });
     use blog_os::memory;
 
-    unsafe { memory::describe_page_table(0, startaddr, 4, physical_memory_offset); }
 
     
     use x86_64::VirtAddr;
@@ -76,14 +79,16 @@ fn kernel_start(boot_info: &'static BootInfo) -> ! {
 
     let mut frame_allocator = memory::BootInfoFrameAllocator::init(memory_map);
 
-    let test_addr = 0xdeadb200;
-    let page = Page::containing_address(VirtAddr::new(test_addr));
-    memory::create_example_mapping(page, &mut mapper, &mut frame_allocator);
+    use blog_os::allocator;
+    allocator::init_heap(&mut mapper, &mut frame_allocator, 256 * 1024).expect("Failed to init heap");
+    
+    unsafe { memory::describe_page_table(0, startaddr, 4, physical_memory_offset); }
 
-    println!("Translated virt addr {:x}, to {:?}", test_addr, mapper.translate_addr(VirtAddr::new(test_addr)));
-
-    let test_addr = test_addr as *mut u64;
-    unsafe { test_addr.write_volatile(0x_f021_f077_f065_f04e); }
+    let mut vec = Vec::new();
+    for i in 0..10 {
+        vec.push(i);
+    }
+    println!("vec at {:p} : {:?}", vec.as_slice(), vec);
     
     #[cfg(test)]
     test_main();
