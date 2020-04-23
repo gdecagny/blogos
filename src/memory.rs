@@ -237,6 +237,8 @@ impl BootInfoFrameAllocator {
 
 unsafe impl FrameAllocator<Size4KiB> for BootInfoFrameAllocator {
     fn allocate_frame(&mut self) -> Option<UnusedPhysFrame> {
+
+        // FIXME : this is in O(self.next) so allocation of N pages is in O(N^2) 
         let frame = self.usable_frames().nth(self.next);
         self.next += 1;
         frame

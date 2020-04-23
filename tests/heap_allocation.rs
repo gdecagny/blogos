@@ -64,7 +64,7 @@ fn test_lots_of_boxes() {
     let n = 100;
     for i in 0..n {
         let boxx = Box::new([0 as u32; (HEAP_SIZE / 4) - 200]);
-        // each box will consume 200 kB of heap, total heap size is 256 kB
+        // each box will consume close to 100% of heap
     }
     serial_print!("[ok]\n");
 }
