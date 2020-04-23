@@ -222,17 +222,14 @@ impl BootInfoFrameAllocator {
         }
     }
 
-    fn usable_frames(&self) -> impl Iterator<Item = UnusedPhysFrame> {
-
-        let truc = MemoryRegion::empty();
-        
+    fn usable_frames(&self) -> impl Iterator<Item = UnusedPhysFrame> {      
         use crate::serial_println;
 
         let regions = self.memory_map.iter();
         let usable_regions = regions.filter(|r| r.region_type == MemoryRegionType::Usable);
         let frames = usable_regions.map(|r| r.range.start_addr()..r.range.end_addr());
         let frame_addresses = frames.flat_map(|r| r.step_by(4096));
-        let frames = frame_addresses.map(|addr| { serial_println!("{:x}", addr); PhysFrame::containing_address(PhysAddr::new(addr)) });
+        let frames = frame_addresses.map(|addr| {/*  serial_println!("{:x}", addr);  */ PhysFrame::containing_address(PhysAddr::new(addr)) });
         frames.map(|frame| unsafe { UnusedPhysFrame::new(frame)})
     }
 
